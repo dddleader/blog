@@ -1,0 +1,8 @@
+[site-base]
+listenPort = 8080
+
+[static]
+# 静态文件目录配置
+cssDir = "static/css"
+jsDir = "static/js"
+imgDir = "static/images"
