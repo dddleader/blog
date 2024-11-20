@@ -1,20 +1,16 @@
-/**
- * 静态文件服务
- */
 package site
 
+/*
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 
-	"blog/article"
+	"blog/api/middleware"
 	"blog/config"
 )
 
@@ -59,36 +55,11 @@ func (s *Site) Run() {
 
 	// API endpoints
 	mux.HandleFunc("/api/articles", func(w http.ResponseWriter, r *http.Request) {
-		page := 1
-		pageSize := 10
-
-		if p := r.URL.Query().Get("page"); p != "" {
-			fmt.Sscanf(p, "%d", &page)
-		}
-		if ps := r.URL.Query().Get("pageSize"); ps != "" {
-			fmt.Sscanf(ps, "%d", &pageSize)
-		}
-
-		articles, err := article.LoadArticles(page, pageSize)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(articles)
+		// ... 原有代码 ...
 	})
 
 	mux.HandleFunc("/api/article/", func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/api/article/")
-		article, err := article.GetArticle(path)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(article)
+		// ... 原有代码 ...
 	})
 
 	// 所有其他路由返回index.html
@@ -96,7 +67,11 @@ func (s *Site) Run() {
 		http.ServeFile(w, r, "site/index.html")
 	})
 
+	// 使用CORS中间件包装mux
+	handler := middleware.Cors(mux)
+
 	addr := fmt.Sprintf(":%d", port)
 	logrus.Info("starting site server on", addr)
-	logrus.Fatal(http.ListenAndServe(addr, mux))
+	logrus.Fatal(http.ListenAndServe(addr, handler))
 }
+*/

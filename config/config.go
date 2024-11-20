@@ -46,8 +46,10 @@ func Init() {
 		}
 
 		Conf = new(Config)
-		viper.Unmarshal(&Conf.ApiBase)
-		viper.Unmarshal(&Conf.Site)
+		err = viper.Unmarshal(Conf)
+		if err != nil {
+			panic(err)
+		}
 	})
 }
 

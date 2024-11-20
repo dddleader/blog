@@ -43,6 +43,7 @@ func (s *Server) Run() {
 
 	// 启动服务器
 	go func() {
+		fmt.Printf("server starting at port %d\n", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logrus.Errorf("listen error: %s\n", err)
 			os.Exit(1)

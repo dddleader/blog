@@ -3,7 +3,6 @@ package main
 import (
 	"blog/api"
 	"blog/config"
-	"blog/site"
 	"flag"
 	"fmt"
 	"os"
@@ -27,9 +26,9 @@ func main() {
 	case "api":
 		server := api.New()
 		server.Run()
-	case "site":
-		server := site.New()
-		server.Run()
+	// case "site":
+	// 	server := site.New()
+	// 	server.Run()
 	default:
 		fmt.Println("退出：模块参数错误!")
 		return

@@ -2,16 +2,21 @@ package article
 
 import (
 	"fmt"
-	"io/ioutil"
+	"net/http"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/parser"
 	"gopkg.in/yaml.v2"
 )
 
 type Article struct {
+	ID      string   `yaml:"id"` // 新增ID字段
 	Title   string   `yaml:"title"`
 	Date    string   `yaml:"date"`
 	Summary string   `yaml:"summary"`
@@ -20,27 +25,57 @@ type Article struct {
 	Content string   `yaml:"-"`
 	Path    string   `yaml:"-"`
 }
-
 type ArticleList struct {
-	Articles []Article
-	Total    int
-	Page     int
-	PageSize int
+	Articles []Article `json:"articles"` // 添加 json tag
+	Total    int       `json:"total"`
+	Page     int       `json:"page"`
+	PageSize int       `json:"pageSize"`
 }
 
+// 获取文章列表
+func GetArticles(c *gin.Context) {
+	// 获取分页参数
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+
+	// 获取文章列表
+	articles, err := LoadArticles(page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "Failed to load articles",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// 返回成功响应
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"articles": articles.Articles,
+			"total":    articles.Total,
+			"page":     articles.Page,
+			"pageSize": articles.PageSize,
+		},
+	})
+}
 func LoadArticles(page, pageSize int) (*ArticleList, error) {
-	files, err := ioutil.ReadDir("articles")
+	files, err := os.ReadDir("articles")
 	if err != nil {
 		return nil, err
 	}
 
 	var articles []Article
 	for _, file := range files {
+		// 只读取md文件
 		if filepath.Ext(file.Name()) == ".md" {
 			article, err := parseArticle(file.Name())
 			if err != nil {
+				logrus.Errorf("Error parsing article %s: %v", file.Name(), err)
 				continue
 			}
+			logrus.Infof("Parsed article: %s", article.Title)
 			articles = append(articles, article)
 		}
 	}
@@ -65,21 +100,25 @@ func LoadArticles(page, pageSize int) (*ArticleList, error) {
 }
 
 func parseArticle(filename string) (Article, error) {
-	content, err := ioutil.ReadFile(filepath.Join("articles", filename))
+	content, err := os.ReadFile(filepath.Join("articles", filename))
 	if err != nil {
 		return Article{}, err
 	}
 
-	// 分割前置元数据和内容
-	parts := strings.Split(string(content), "---\n")
+	// 修改这里：使用更精确的分割方式
+	parts := strings.SplitN(string(content), "---", 3)
 	if len(parts) < 3 {
 		return Article{}, fmt.Errorf("invalid article format")
 	}
 
+	// 去除前后空白
+	yamlContent := strings.TrimSpace(parts[1])
+	markdownContent := strings.TrimSpace(parts[2])
+
 	var article Article
-	err = yaml.Unmarshal([]byte(parts[1]), &article)
+	err = yaml.Unmarshal([]byte(yamlContent), &article)
 	if err != nil {
-		return Article{}, err
+		return Article{}, fmt.Errorf("yaml parse error: %v", err)
 	}
 
 	// 解析Markdown内容
@@ -89,7 +128,7 @@ func parseArticle(filename string) (Article, error) {
 		),
 	)
 	var buf strings.Builder
-	if err := m.Convert([]byte(parts[2]), &buf); err != nil {
+	if err := m.Convert([]byte(markdownContent), &buf); err != nil {
 		return Article{}, err
 	}
 	article.Content = buf.String()
@@ -98,10 +137,24 @@ func parseArticle(filename string) (Article, error) {
 	return article, nil
 }
 
-func GetArticle(path string) (*Article, error) {
+func GetSingleArticle(c *gin.Context) {
+	// 从URL参数中获取path
+	path := c.Param("path")
+
+	// 获取文章
 	article, err := parseArticle(path + ".md")
 	if err != nil {
-		return nil, err
+		c.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "Article not found",
+			"error":   err.Error(),
+		})
+		return
 	}
-	return &article, nil
+
+	// 返回成功响应
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": article,
+	})
 }
