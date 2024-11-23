@@ -1,0 +1,10 @@
+[jwt]
+secret = "test-secret-key"
+expiration = 3600
+
+[database]
+host = "127.0.0.1"
+port = 3307
+user = "root"
+password = "200455"
+dbname = "blog" 

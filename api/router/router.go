@@ -3,21 +3,20 @@ package router
 import (
 	"blog/api/middleware"
 	"blog/article"
-	"net/http"
+	_ "blog/docs"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func Register() *gin.Engine {
 	r := gin.New()
 
-	// 使用日志和恢复中间件
+	// 使用中间件
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.Cors())
-
-	// 或者使用 StaticFS 更灵活地配置
-	r.StaticFS("/static", http.Dir("static"))
 
 	// 健康检查
 	r.GET("/ping", func(c *gin.Context) {
@@ -26,12 +25,31 @@ func Register() *gin.Engine {
 		})
 	})
 
+	// Swagger文档
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	// API 路由组
 	api := r.Group("/api")
 	{
-		// TODO: 添加API路由
+		// 公开接口
 		api.GET("/articles", article.GetArticles)
-		api.GET("/single-article/:path", article.GetSingleArticle)
+		api.GET("/articles/:id", article.GetSingleArticle)
+
+		// 管理员接口
+		admin := api.Group("/admin")
+		{
+			admin.POST("/login", article.AdminLogin)
+
+			// 需要认证的接口
+			authorized := admin.Group("")
+			authorized.Use(middleware.AuthRequired())
+			{
+				// 文章管理接口
+				authorized.POST("/articles", article.CreateArticle)
+				authorized.PUT("/articles/:id", article.UpdateArticle)
+				authorized.DELETE("/articles/:id", article.DeleteArticle)
+			}
+		}
 	}
 
 	return r

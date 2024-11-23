@@ -1,56 +1,86 @@
 package config
 
 import (
+	"os"
 	"sync"
 
 	"github.com/spf13/viper"
 )
 
-var once sync.Once
-var Conf *Config
-
+// 配置结构体
 type Config struct {
-	ApiBase ApiBase `mapstructure:"api-base"`
-	Site    Site    `mapstructure:"site"`
+	ApiBase  ApiBase  `mapstructure:"api-base"`
+	Database Database `mapstructure:"database"`
+	JWT      JWT      `mapstructure:"jwt"`
 }
 
 type ApiBase struct {
 	ListenPort int `mapstructure:"listenPort"`
 }
 
-type Site struct {
-	SiteBase SiteBase `mapstructure:"site-base"`
+type Database struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+	DBName   string `mapstructure:"dbname"`
 }
 
-type SiteBase struct {
-	ListenPort int `mapstructure:"listenPort"`
+type JWT struct {
+	Secret     string `mapstructure:"secret"`
+	Expiration int    `mapstructure:"expiration"`
 }
+
+var (
+	Conf *Config
+	once sync.Once
+)
 
 func Init() {
 	once.Do(func() {
 		viper.SetConfigType("toml")
-		viper.AddConfigPath("./config")
 
-		// 读取 api 配置
-		viper.SetConfigName("api")
-		err := viper.ReadInConfig()
-		if err != nil {
-			panic(err)
+		// 根据环境选择配置文件
+		env := os.Getenv("GO_ENV")
+		if env == "test" {
+			viper.SetConfigName("test")
+		} else {
+			viper.SetConfigName("api")
 		}
 
-		// 读取 site 配置
-		viper.SetConfigName("site")
-		err = viper.MergeInConfig()
-		if err != nil {
+		viper.AddConfigPath("../config") // 添加上级目录的配置路径
+		viper.AddConfigPath("./config")  // 添加当前目录的配置路径
+
+		if err := viper.ReadInConfig(); err != nil {
+			// 在测试环境中，如果找不到配置文件，使用默认配置
+			if env == "test" {
+				Conf = getDefaultConfig()
+				return
+			}
 			panic(err)
 		}
 
 		Conf = new(Config)
-		err = viper.Unmarshal(Conf)
-		if err != nil {
+		if err := viper.Unmarshal(Conf); err != nil {
 			panic(err)
 		}
 	})
+}
+
+func getDefaultConfig() *Config {
+	return &Config{
+		JWT: JWT{
+			Secret:     "test-secret-key",
+			Expiration: 3600,
+		},
+		Database: Database{
+			Host:     "127.0.0.1",
+			Port:     3307,
+			User:     "root",
+			Password: "200455",
+			DBName:   "blog",
+		},
+	}
 }
 
 func GetConfig() *Config {

@@ -1,158 +1,171 @@
 package article
 
 import (
-	"fmt"
+	"database/sql"
+	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/sirupsen/logrus"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/parser"
-	"gopkg.in/yaml.v2"
+
+	"blog/models"
 )
 
-type Article struct {
-	ID      string   `yaml:"id"` // 新增ID字段
-	Title   string   `yaml:"title"`
-	Date    string   `yaml:"date"`
-	Summary string   `yaml:"summary"`
-	Cover   string   `yaml:"cover"`
-	Tags    []string `yaml:"tags"`
-	Content string   `yaml:"-"`
-	Path    string   `yaml:"-"`
-}
-type ArticleList struct {
-	Articles []Article `json:"articles"` // 添加 json tag
-	Total    int       `json:"total"`
-	Page     int       `json:"page"`
-	PageSize int       `json:"pageSize"`
-}
-
-// 获取文章列表
+// @Summary 获取文章列表
+// @Description 获取所有已发布的文章列表，支持分页
+// @Tags 文章
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param pageSize query int false "每页数量" default(10)
+// @Success 200 {object} models.ArticleListResponse
+// @Router /articles [get]
 func GetArticles(c *gin.Context) {
 	// 获取分页参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 
-	// 获取文章列表
-	articles, err := LoadArticles(page, pageSize)
+	// 连接数据库
+	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "Failed to load articles",
-			"error":   err.Error(),
-		})
+		logrus.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库连接失败"})
+		return
+	}
+	defer db.Close()
+
+	// 获取总数
+	var total int64
+	err = db.QueryRow("SELECT COUNT(*) FROM articles WHERE on_show = true").Scan(&total)
+	if err != nil {
+		logrus.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询文章总数失败"})
 		return
 	}
 
-	// 返回成功响应
+	// 查询文章列表
+	offset := (page - 1) * pageSize
+	rows, err := db.Query(`
+		SELECT id, title, content, summary, cover, created_at, updated_at, status, views, tags, on_show
+		FROM articles 
+		WHERE on_show = true 
+		ORDER BY created_at DESC 
+		LIMIT ? OFFSET ?`,
+		pageSize, offset,
+	)
+	if err != nil {
+		logrus.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询文章列表失败"})
+		return
+	}
+	defer rows.Close()
+
+	var articles []models.Article
+	for rows.Next() {
+		var article models.Article
+		var tagsJSON []byte
+		err := rows.Scan(
+			&article.ID,
+			&article.Title,
+			&article.Content,
+			&article.Summary,
+			&article.Cover,
+			&article.CreatedAt,
+			&article.UpdatedAt,
+			&article.Status,
+			&article.Views,
+			&tagsJSON,
+			&article.OnShow,
+		)
+		if err != nil {
+			logrus.Error(err)
+			continue
+		}
+
+		// 解析tags JSON
+		if err := json.Unmarshal(tagsJSON, &article.Tags); err != nil {
+			logrus.Error(err)
+			article.Tags = []string{}
+		}
+
+		articles = append(articles, article)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
-		"data": gin.H{
-			"articles": articles.Articles,
-			"total":    articles.Total,
-			"page":     articles.Page,
-			"pageSize": articles.PageSize,
+		"data": models.ArticleListResponse{
+			Articles: articles,
+			Total:    total,
+			Page:     page,
+			PageSize: pageSize,
 		},
 	})
 }
-func LoadArticles(page, pageSize int) (*ArticleList, error) {
-	files, err := os.ReadDir("articles")
-	if err != nil {
-		return nil, err
-	}
 
-	var articles []Article
-	for _, file := range files {
-		// 只读取md文件
-		if filepath.Ext(file.Name()) == ".md" {
-			article, err := parseArticle(file.Name())
-			if err != nil {
-				logrus.Errorf("Error parsing article %s: %v", file.Name(), err)
-				continue
-			}
-			logrus.Infof("Parsed article: %s", article.Title)
-			articles = append(articles, article)
-		}
-	}
-
-	// 计算分页
-	total := len(articles)
-	start := (page - 1) * pageSize
-	end := start + pageSize
-	if end > total {
-		end = total
-	}
-	if start >= total {
-		start = total
-	}
-
-	return &ArticleList{
-		Articles: articles[start:end],
-		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
-	}, nil
-}
-
-func parseArticle(filename string) (Article, error) {
-	content, err := os.ReadFile(filepath.Join("articles", filename))
-	if err != nil {
-		return Article{}, err
-	}
-
-	// 修改这里：使用更精确的分割方式
-	parts := strings.SplitN(string(content), "---", 3)
-	if len(parts) < 3 {
-		return Article{}, fmt.Errorf("invalid article format")
-	}
-
-	// 去除前后空白
-	yamlContent := strings.TrimSpace(parts[1])
-	markdownContent := strings.TrimSpace(parts[2])
-
-	var article Article
-	err = yaml.Unmarshal([]byte(yamlContent), &article)
-	if err != nil {
-		return Article{}, fmt.Errorf("yaml parse error: %v", err)
-	}
-
-	// 解析Markdown内容
-	m := goldmark.New(
-		goldmark.WithParserOptions(
-			parser.WithAutoHeadingID(),
-		),
-	)
-	var buf strings.Builder
-	if err := m.Convert([]byte(markdownContent), &buf); err != nil {
-		return Article{}, err
-	}
-	article.Content = buf.String()
-	article.Path = strings.TrimSuffix(filename, ".md")
-
-	return article, nil
-}
-
+// @Summary 获取单篇文章
+// @Description 根据ID获取单篇文章详情
+// @Tags 文章
+// @Accept json
+// @Produce json
+// @Param id path int true "文章ID"
+// @Success 200 {object} models.Article
+// @Router /articles/{id} [get]
 func GetSingleArticle(c *gin.Context) {
-	// 从URL参数中获取path
-	path := c.Param("path")
+	id := c.Param("id")
 
-	// 获取文章
-	article, err := parseArticle(path + ".md")
+	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog")
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "Article not found",
-			"error":   err.Error(),
-		})
+		logrus.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库连接失败"})
+		return
+	}
+	defer db.Close()
+
+	var article models.Article
+	var tagsJSON []byte
+	err = db.QueryRow(`
+		SELECT id, title, content, summary, cover, created_at, updated_at, status, views, tags, on_show
+		FROM articles 
+		WHERE id = ? AND on_show = true`,
+		id,
+	).Scan(
+		&article.ID,
+		&article.Title,
+		&article.Content,
+		&article.Summary,
+		&article.Cover,
+		&article.CreatedAt,
+		&article.UpdatedAt,
+		&article.Status,
+		&article.Views,
+		&tagsJSON,
+		&article.OnShow,
+	)
+
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在"})
+		return
+	}
+	if err != nil {
+		logrus.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询文章失败"})
 		return
 	}
 
-	// 返回成功响应
+	// 解析tags JSON
+	if err := json.Unmarshal(tagsJSON, &article.Tags); err != nil {
+		logrus.Error(err)
+		article.Tags = []string{}
+	}
+
+	// 更新浏览次数
+	_, err = db.Exec("UPDATE articles SET views = views + 1 WHERE id = ?", id)
+	if err != nil {
+		logrus.Error(err)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"data": article,

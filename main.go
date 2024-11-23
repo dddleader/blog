@@ -10,6 +10,12 @@ import (
 	"syscall"
 )
 
+// @title Blog API
+// @version 1.0
+// @description 个人博客系统API文档
+// @host localhost:8081
+// @BasePath /api
+
 func main() {
 	// 添加命令行参数
 	var module string
