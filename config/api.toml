@@ -1,7 +1,7 @@
 [api-base]
 listenPort = 8082
 staticPath = "./static"
-allowedOrigins = ["http://localhost:8080"]
+
 
 [database]
 host = "127.0.0.1"

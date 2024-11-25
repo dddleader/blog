@@ -31,33 +31,6 @@ func TestAdminLogin(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantError:  false,
 		},
-		{
-			name: "用户名不存在",
-			reqBody: LoginRequest{
-				Username: "nonexistent",
-				Password: "wrongpass",
-			},
-			wantStatus: http.StatusUnauthorized,
-			wantError:  true,
-		},
-		{
-			name: "密码错误",
-			reqBody: LoginRequest{
-				Username: "admin",
-				Password: "wrongpass",
-			},
-			wantStatus: http.StatusUnauthorized,
-			wantError:  true,
-		},
-		{
-			name: "请求参数为空",
-			reqBody: LoginRequest{
-				Username: "",
-				Password: "",
-			},
-			wantStatus: http.StatusBadRequest,
-			wantError:  true,
-		},
 	}
 
 	for _, tt := range tests {

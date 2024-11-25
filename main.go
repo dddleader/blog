@@ -13,7 +13,7 @@ import (
 // @title Blog API
 // @version 1.0
 // @description 个人博客系统API文档
-// @host localhost:8081
+// @host localhost:8082
 // @BasePath /api
 
 func main() {

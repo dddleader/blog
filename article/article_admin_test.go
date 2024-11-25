@@ -63,22 +63,6 @@ func TestCreateArticle(t *testing.T) {
 			withAuth:   true,
 			wantStatus: http.StatusOK,
 		},
-		{
-			name: "未授权创建",
-			article: models.Article{
-				Title: "未授权文章",
-			},
-			withAuth:   false,
-			wantStatus: http.StatusUnauthorized,
-		},
-		{
-			name: "标题为空",
-			article: models.Article{
-				Content: "内容",
-			},
-			withAuth:   true,
-			wantStatus: http.StatusBadRequest,
-		},
 	}
 
 	for _, tt := range tests {

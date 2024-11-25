@@ -1,5 +1,5 @@
 [site-base]
-listenPort = 8080
+listenPort = 8082
 
 [static]
 # 静态文件目录配置

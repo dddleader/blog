@@ -17,17 +17,17 @@ import (
 // @Accept json
 // @Produce json
 // @Param Authorization header string true "Bearer 用户令牌"
-// @Param article body models.Article true "文章信息"
+// @Param article body models.CreateArticleRequest true "文章信息"
 // @Success 200 {object} map[string]interface{}
 // @Router /admin/articles [post]
 func CreateArticle(c *gin.Context) {
-	var article models.Article
-	if err := c.ShouldBindJSON(&article); err != nil {
+	var req models.CreateArticleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求参数"})
 		return
 	}
 
-	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog")
+	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog?charset=utf8mb4&parseTime=True")
 	if err != nil {
 		logrus.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库连接失败"})
@@ -36,17 +36,20 @@ func CreateArticle(c *gin.Context) {
 	defer db.Close()
 
 	// 将tags转换为JSON
-	tagsJSON, err := json.Marshal(article.Tags)
+	tagsJSON, err := json.Marshal(req.Tags)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "标签格式错误"})
 		return
 	}
 
+	// 插入文章
 	result, err := db.Exec(`
-		INSERT INTO articles (title, content, summary, cover, status, tags, on_show)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		article.Title, article.Content, article.Summary, article.Cover,
-		article.Status, tagsJSON, article.OnShow,
+		INSERT INTO articles (
+			title, content, summary, cover, status, tags, 
+			on_show, views, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, true, 0, NOW(), NOW())`,
+		req.Title, req.Content, req.Summary, req.Cover,
+		req.Status, tagsJSON,
 	)
 	if err != nil {
 		logrus.Error(err)
@@ -68,18 +71,18 @@ func CreateArticle(c *gin.Context) {
 // @Produce json
 // @Param Authorization header string true "Bearer 用户令牌"
 // @Param id path int true "文章ID"
-// @Param article body models.Article true "文章信息"
+// @Param article body models.UpdateArticleRequest true "文章信息"
 // @Success 200 {object} map[string]interface{}
 // @Router /admin/articles/{id} [put]
 func UpdateArticle(c *gin.Context) {
 	id := c.Param("id")
-	var article models.Article
-	if err := c.ShouldBindJSON(&article); err != nil {
+	var req models.UpdateArticleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求参数"})
 		return
 	}
 
-	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog")
+	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog?charset=utf8mb4&parseTime=True")
 	if err != nil {
 		logrus.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库连接失败"})
@@ -87,18 +90,19 @@ func UpdateArticle(c *gin.Context) {
 	}
 	defer db.Close()
 
-	tagsJSON, err := json.Marshal(article.Tags)
+	tagsJSON, err := json.Marshal(req.Tags)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "标签格式错误"})
 		return
 	}
 
+	// 更新所有字段，包括 cover
 	_, err = db.Exec(`
 		UPDATE articles 
-		SET title=?, content=?, summary=?, cover=?, status=?, tags=?, on_show=?
+		SET title=?, content=?, summary=?, cover=?, status=?, tags=?
 		WHERE id=?`,
-		article.Title, article.Content, article.Summary, article.Cover,
-		article.Status, tagsJSON, article.OnShow, id,
+		req.Title, req.Content, req.Summary, req.Cover,
+		req.Status, tagsJSON, id,
 	)
 	if err != nil {
 		logrus.Error(err)
@@ -121,7 +125,7 @@ func UpdateArticle(c *gin.Context) {
 func DeleteArticle(c *gin.Context) {
 	id := c.Param("id")
 
-	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog")
+	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog?charset=utf8mb4&parseTime=True")
 	if err != nil {
 		logrus.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库连接失败"})

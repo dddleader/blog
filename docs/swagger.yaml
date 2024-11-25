@@ -36,8 +36,6 @@ definitions:
         type: string
       views:
         type: integer
-    required:
-    - title
     type: object
   models.ArticleListResponse:
     properties:
@@ -52,7 +50,44 @@ definitions:
       total:
         type: integer
     type: object
-host: localhost:8081
+  models.CreateArticleRequest:
+    properties:
+      content:
+        type: string
+      cover:
+        type: string
+      status:
+        type: integer
+      summary:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    required:
+    - content
+    - title
+    type: object
+  models.UpdateArticleRequest:
+    properties:
+      content:
+        type: string
+      cover:
+        type: string
+      status:
+        type: integer
+      summary:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    type: object
+host: localhost:8082
 info:
   contact: {}
   description: 个人博客系统API文档
@@ -75,7 +110,7 @@ paths:
         name: article
         required: true
         schema:
-          $ref: '#/definitions/models.Article'
+          $ref: '#/definitions/models.CreateArticleRequest'
       produces:
       - application/json
       responses:
@@ -134,7 +169,7 @@ paths:
         name: article
         required: true
         schema:
-          $ref: '#/definitions/models.Article'
+          $ref: '#/definitions/models.UpdateArticleRequest'
       produces:
       - application/json
       responses:

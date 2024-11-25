@@ -27,8 +27,9 @@ func GetArticles(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 
-	// 连接数据库
-	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog")
+	// 修改数据库连接字符串
+	const dbConnString = "root:200455@tcp(127.0.0.1:3307)/blog?charset=utf8mb4&parseTime=True&loc=Local"
+	db, err := sql.Open("mysql", dbConnString)
 	if err != nil {
 		logrus.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库连接失败"})
@@ -36,7 +37,7 @@ func GetArticles(c *gin.Context) {
 	}
 	defer db.Close()
 
-	// 获取总数
+	// 获取��数
 	var total int64
 	err = db.QueryRow("SELECT COUNT(*) FROM articles WHERE on_show = true").Scan(&total)
 	if err != nil {
@@ -66,6 +67,7 @@ func GetArticles(c *gin.Context) {
 	for rows.Next() {
 		var article models.Article
 		var tagsJSON []byte
+
 		err := rows.Scan(
 			&article.ID,
 			&article.Title,
@@ -80,18 +82,28 @@ func GetArticles(c *gin.Context) {
 			&article.OnShow,
 		)
 		if err != nil {
-			logrus.Error(err)
+			logrus.Error("扫描文章数据失败:", err)
 			continue
 		}
 
 		// 解析tags JSON
 		if err := json.Unmarshal(tagsJSON, &article.Tags); err != nil {
-			logrus.Error(err)
+			logrus.Error("解析标签失败:", err)
 			article.Tags = []string{}
 		}
 
 		articles = append(articles, article)
 	}
+
+	// 检查遍历错误
+	if err = rows.Err(); err != nil {
+		logrus.Error("遍历文章数据失败:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文章数据失败"})
+		return
+	}
+
+	// 添加日志
+	logrus.Infof("查询到 %d 篇文章", len(articles))
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,

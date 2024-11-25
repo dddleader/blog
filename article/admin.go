@@ -49,7 +49,7 @@ func AdminLogin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务器内部错误"})
 		return
 	}
-
+	// 比较密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
 		return
@@ -75,7 +75,7 @@ func AdminLogin(c *gin.Context) {
 
 // 从数据库获取用户信息
 func getUserByUsername(username string) (*AdminUser, error) {
-	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog")
+	db, err := sql.Open("mysql", "root:200455@tcp(127.0.0.1:3307)/blog?charset=utf8mb4&parseTime=True")
 	if err != nil {
 		return nil, err
 	}
